@@ -30,7 +30,13 @@ async function generateReply(review) {
   const data = await res.json();
   return data.choices[0].message.content;
 }
+app.post("/save-config", (req, res) => {
+  const { apiKey } = req.body;
 
+  console.log("Saved API key:", apiKey);
+
+  res.json({ success: true });
+});
 app.post("/webhook/review-created", async (req, res) => {
   try {
     const reviewText = req.body.review?.content;
