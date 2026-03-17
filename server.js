@@ -6,11 +6,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// 🔑 ENV VARIABLES
+// ENV VARIABLES
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const JUDGEME_API_KEY = process.env.JUDGEME_API_KEY;
 
-// 🧠 AI GENERATION
+// AI GENERATION
 async function generateReply(review) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -33,16 +33,14 @@ async function generateReply(review) {
   return data.choices[0].message.content;
 }
 
-// 💾 SAVE API KEY (test connection)
+// SAVE CONFIG (test)
 app.post("/save-config", (req, res) => {
   const { apiKey } = req.body;
-
   console.log("Saved API key:", apiKey);
-
   res.json({ success: true });
 });
 
-// 🔁 POLLING SYSTEM (SAN WEBHOOK)
+// POLLING SYSTEM
 let repliedReviews = new Set();
 
 async function checkNewReviews() {
@@ -55,13 +53,19 @@ async function checkNewReviews() {
 
     const data = await res.json();
 
+    console.log("🔍 API response:", data);
+
+    // FIX ERROR HERE
+    if (!data.reviews || !Array.isArray(data.reviews)) {
+      console.log("❌ Invalid reviews data:", data);
+      return;
+    }
+
     for (const review of data.reviews) {
 
-      // evite double reply
       if (repliedReviews.has(review.id)) continue;
 
-      // sèlman si pa gen reply
-      if (!review.reply) {
+      if (!review.reply && review.content) {
 
         const reply = await generateReply(review.content);
 
@@ -85,16 +89,16 @@ async function checkNewReviews() {
   }
 }
 
-// 🚀 RUN IMMEDIATELY + EVERY 30s
+// RUN IMMEDIATELY + EVERY 30s
 checkNewReviews();
 setInterval(checkNewReviews, 30000);
 
-// 🟢 ROOT TEST
+// ROOT
 app.get("/", (req, res) => {
   res.send("AutoReview AI backend running");
 });
 
-// ▶️ START SERVER
+// START SERVER
 app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
