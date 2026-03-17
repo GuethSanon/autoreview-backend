@@ -6,9 +6,11 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// 🔑 ENV VARIABLES
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const JUDGEME_API_KEY = process.env.JUDGEME_API_KEY;
 
+// 🧠 AI GENERATION
 async function generateReply(review) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -21,7 +23,7 @@ async function generateReply(review) {
       messages: [
         {
           role: "user",
-          content: `Reply to this review in 2 sentences max:\n\n${review}`
+          content: `Reply to this customer review in a professional and friendly tone in max 2 sentences:\n\n${review}`
         }
       ]
     })
@@ -30,6 +32,8 @@ async function generateReply(review) {
   const data = await res.json();
   return data.choices[0].message.content;
 }
+
+// 💾 SAVE API KEY (test connection)
 app.post("/save-config", (req, res) => {
   const { apiKey } = req.body;
 
@@ -37,35 +41,60 @@ app.post("/save-config", (req, res) => {
 
   res.json({ success: true });
 });
-app.post("/webhook/review-created", async (req, res) => {
+
+// 🔁 POLLING SYSTEM (SAN WEBHOOK)
+let repliedReviews = new Set();
+
+async function checkNewReviews() {
   try {
-    const reviewText = req.body.review?.content;
-    const reviewId = req.body.review?.id;
-
-    if (!reviewText || !reviewId) {
-      return res.status(400).send("Invalid data");
-    }
-
-    const reply = await generateReply(reviewText);
-
-    await fetch(`https://judge.me/api/reviews/${reviewId}/reply`, {
-      method: "POST",
+    const res = await fetch("https://judge.me/api/v1/reviews", {
       headers: {
-        "Authorization": `Bearer ${JUDGEME_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ reply })
+        "Authorization": `Bearer ${JUDGEME_API_KEY}`
+      }
     });
 
-    res.sendStatus(200);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error");
-  }
-});
+    const data = await res.json();
 
+    for (const review of data.reviews) {
+
+      // evite double reply
+      if (repliedReviews.has(review.id)) continue;
+
+      // sèlman si pa gen reply
+      if (!review.reply) {
+
+        const reply = await generateReply(review.content);
+
+        await fetch(`https://judge.me/api/v1/reviews/${review.id}/reply`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${JUDGEME_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ reply })
+        });
+
+        console.log("✅ Replied to review:", review.id);
+
+        repliedReviews.add(review.id);
+      }
+    }
+
+  } catch (err) {
+    console.error("❌ Polling error:", err);
+  }
+}
+
+// 🚀 RUN IMMEDIATELY + EVERY 30s
+checkNewReviews();
+setInterval(checkNewReviews, 30000);
+
+// 🟢 ROOT TEST
 app.get("/", (req, res) => {
   res.send("AutoReview AI backend running");
 });
 
-app.listen(3000, () => console.log("Server running"));
+// ▶️ START SERVER
+app.listen(3000, () => {
+  console.log("Server running on port 3000");
+});
