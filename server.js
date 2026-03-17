@@ -12,7 +12,8 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const JUDGEME_API_KEY = process.env.JUDGEME_API_KEY;
 
 // ⚠️ RANPLASE SA AK STORE OU
-const SHOP_DOMAIN = "cure-jewelry-2.myshopify.com";
+const SHOP_DOMAIN = "389z94-mx.myshopify.com
+";
 
 // 🤖 GENERATE AI REPLY
 async function generateReply(review) {
